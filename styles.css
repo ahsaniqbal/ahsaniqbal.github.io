@@ -1,0 +1,31 @@
+:root {
+  --content-width: 900px;
+}
+
+.quarto-title-banner {
+  padding-top: 1.8rem;
+  padding-bottom: 1.2rem;
+}
+
+main.content {
+  max-width: var(--content-width);
+}
+
+pre.sourceCode {
+  border-radius: 10px;
+  padding: 0.8rem;
+}
+
+.cell-output {
+  border-left: 3px solid var(--bs-border-color);
+  padding-left: 1rem;
+  margin-top: 0.4rem;
+}
+
+.math.display {
+  margin: 1.4rem 0;
+}
+
+h2 {
+  margin-top: 2rem;
+}

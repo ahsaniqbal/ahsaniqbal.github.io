@@ -1,0 +1,23 @@
+---
+title: "Point Transformer — Notes"
+categories: [Point Clouds, Transformers, 3D Vision]
+---
+
+## Overview
+
+Use this page for your Point Transformer v1/v2/v3 notes.
+
+A generic local attention update may be written as
+
+$$
+y_i = \sum_{j \in \mathcal{N}(i)} \alpha_{ij} \odot
+\left(v_j + \delta(p_i-p_j)\right).
+$$
+
+## Topics
+
+- k-nearest-neighbor grouping
+- relative positional encoding
+- vector attention
+- transition down / transition up
+- serialized attention

@@ -1,0 +1,21 @@
+---
+title: "Experience"
+---
+
+## Current Work
+
+Add your current role here. Keep company-confidential details high level.
+
+Example:
+
+> Working on efficient neural-network encoders for radar/LiDAR perception, with a
+> focus on point-cloud processing, PyTorch compilation, GPU profiling, and model optimization.
+
+## Previous Experience
+
+Add previous roles here with:
+
+- Role and organization
+- Dates
+- Main technical areas
+- Selected achievements

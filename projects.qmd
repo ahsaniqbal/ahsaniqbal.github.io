@@ -1,0 +1,18 @@
+---
+title: "Projects"
+---
+
+## Selected Projects
+
+### DETR from Scratch
+
+Short description, implementation details, and GitHub link.
+
+### DDPM from Scratch
+
+Short description and experiments.
+
+### GPU / PyTorch Optimization
+
+Notes and small experiments around `torch.compile`, CUDA, Triton, kernel fusion,
+profiling, and quantization.

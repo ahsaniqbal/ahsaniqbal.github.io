@@ -1,0 +1,14 @@
+---
+title: "Self-Supervised Learning"
+categories: [SSL]
+---
+
+Use this section for paper-reading notes on image and point-cloud SSL.
+
+Possible pages:
+
+- DINO / DINOv2 / DINOv3
+- PointContrast
+- masked point modeling
+- contrastive learning
+- teacher–student methods

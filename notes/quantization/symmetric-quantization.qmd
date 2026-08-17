@@ -1,0 +1,77 @@
+---
+title: "Symmetric INT8 Quantization"
+date: 2026-08-17
+categories: [Quantization, PyTorch]
+---
+
+## Idea
+
+For symmetric INT8 quantization, we map floating-point values to an integer range
+using a scale factor.
+
+For a weight tensor \(W\), define
+
+$$
+s = \frac{\max |W|}{127}.
+$$
+
+The quantized value is
+
+$$
+q = \operatorname{round}\left(\frac{W}{s}\right),
+$$
+
+with
+
+$$
+q \in [-127,127].
+$$
+
+The approximate dequantized value is
+
+$$
+\hat W = s q.
+$$
+
+## PyTorch example
+
+```{python}
+import torch
+
+weights = torch.tensor([-1.2, -0.2, 0.4, 1.0])
+
+scale = weights.abs().max() / 127
+q = torch.round(weights / scale).clamp(-127, 127).to(torch.int8)
+
+print("scale:", scale)
+print("quantized:", q)
+print("dequantized:", q.float() * scale)
+```
+
+## Per-channel quantization
+
+For a matrix
+
+$$
+W \in \mathbb{R}^{C_{out} \times C_{in}},
+$$
+
+we can compute a separate scale for each output channel:
+
+```{python}
+weights = torch.randn(4, 16)
+
+abs_max = weights.abs().max(dim=-1).values
+scales = abs_max / 127
+
+q = torch.round(weights / scales[:, None])
+q = q.clamp(-127, 127).to(torch.int8)
+
+q.shape, scales.shape
+```
+
+## Things worth remembering
+
+- Symmetric quantization usually uses zero-point \(z=0\).
+- Per-channel quantization generally reduces error compared with one scale for the whole tensor.
+- `127`, rather than `128`, is commonly used when keeping the range symmetric around zero.

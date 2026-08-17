@@ -1,0 +1,19 @@
+---
+title: "Ahsan Iqbal"
+subtitle: "Machine Learning · 3D Vision · Point Clouds · GPU Optimization"
+toc: false
+---
+
+## About
+
+I am a machine learning engineer/researcher interested in efficient deep learning,
+3D perception, point clouds, self-supervised learning, PyTorch systems, and GPU optimization.
+
+This website serves as both my professional profile and a living collection of technical notes.
+
+## What you will find here
+
+- **Experience** — professional and research background.
+- **Research** — PhD work, publications, and research interests.
+- **Projects** — selected implementations and technical projects.
+- **Notes** — explanations, equations, experiments, and notebook-style code.

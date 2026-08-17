@@ -1,0 +1,26 @@
+---
+title: "Technical Notes"
+toc: false
+---
+
+These are living technical notes rather than polished blog posts. They combine
+plain-language explanations, mathematics, code, experiments, and references.
+
+## Categories
+
+### Quantization
+
+- [Symmetric INT8 Quantization](quantization/symmetric-quantization.qmd)
+- [W8A16 Notebook](quantization/w8a16.ipynb)
+
+### PyTorch
+
+- [torch.compile Notes](pytorch/torch-compile.qmd)
+
+### Point Clouds
+
+- [Point Transformer Notes](point-clouds/point-transformer.qmd)
+
+### Self-Supervised Learning
+
+- [SSL Notes](ssl/index.qmd)

@@ -1,0 +1,26 @@
+---
+title: "Research"
+---
+
+## PhD
+
+Add:
+
+- University
+- Thesis title
+- Research topic
+- Supervisors
+- Dates
+- Main contributions
+
+## Publications
+
+Add publications here. You can later manage them manually or through a BibTeX file.
+
+## Research Interests
+
+- 3D computer vision
+- Point-cloud learning
+- Self-supervised learning
+- Generative models
+- Efficient deep learning

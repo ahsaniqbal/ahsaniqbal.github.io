@@ -1,0 +1,35 @@
+---
+title: "torch.compile — Working Notes"
+categories: [PyTorch, Performance]
+---
+
+## Mental model
+
+Use this page for notes about:
+
+- TorchDynamo
+- FX graphs
+- guards and recompilation
+- graph breaks
+- Inductor
+- CUDA graphs
+- dynamic shapes
+
+## Example
+
+```{python}
+import torch
+
+@torch.compile
+def f(x):
+    return torch.sin(x) * 2
+
+x = torch.randn(1024)
+y = f(x)
+y.shape
+```
+
+## Questions I initially had
+
+Add short explanations of things that were confusing while learning. This often
+turns into the most useful part of a technical note.

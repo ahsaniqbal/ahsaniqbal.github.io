@@ -1,0 +1,39 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Ahsan Iqbal"
+  site-url: "https://ahsaniqbal.github.io"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: experience.qmd
+        text: Experience
+      - href: research.qmd
+        text: Research
+      - href: projects.qmd
+        text: Projects
+      - href: notes/index.qmd
+        text: Notes
+    right:
+      - icon: github
+        href: "https://github.com/Ahsaniqbal"
+  search: true
+  page-footer:
+    center: "© Ahsan Iqbal"
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    css: styles.css
+    toc: true
+    code-copy: true
+    code-overflow: wrap
+    html-math-method: mathjax
+
+execute:
+  freeze: auto
