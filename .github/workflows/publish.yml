@@ -29,8 +29,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Python dependencies
-        run: pip install jupyter torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install Jupyter
+        run: pip install jupyter 
+          
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Render website
         run: quarto render
