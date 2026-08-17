@@ -6,21 +6,82 @@ toc: false
 These are living technical notes rather than polished blog posts. They combine
 plain-language explanations, mathematics, code, experiments, and references.
 
-## Categories
+<div class="notes-groups">
 
-### Quantization
+<details class="notes-group">
+<summary>Quantization</summary>
+
+<div class="notes-group-content">
 
 - [Symmetric INT8 Quantization](quantization/symmetric-quantization.qmd)
 - [W8A16 Notebook](quantization/w8a16.ipynb)
 
-### PyTorch
+</div>
+</details>
 
-- [torch.compile Notes](pytorch/torch-compile.qmd)
+<details class="notes-group">
+<summary>Self-Supervised Learning</summary>
 
-### Point Clouds
-
-- [Point Transformer Notes](point-clouds/point-transformer.qmd)
-
-### Self-Supervised Learning
+<div class="notes-group-content">
 
 - [SSL Notes](ssl/index.qmd)
+- DINO / DINOv2 / DINOv3
+- PointContrast
+- Masked point modeling
+
+</div>
+</details>
+
+<details class="notes-group">
+<summary>Point Clouds</summary>
+
+<div class="notes-group-content">
+
+- [Point Transformer Notes](point-clouds/point-transformer.qmd)
+- Sparse convolutions
+- PointPillars / voxelization
+- Serialized attention
+
+</div>
+</details>
+
+<details class="notes-group">
+<summary>PyTorch & Performance</summary>
+
+<div class="notes-group-content">
+
+- [torch.compile Notes](pytorch/torch-compile.qmd)
+- TorchDynamo guards
+- CUDA graphs
+- Profiling
+- Kernel fusion
+- Triton
+
+</div>
+</details>
+
+<details class="notes-group">
+<summary>Generative Models</summary>
+
+<div class="notes-group-content">
+
+- DDPM
+- Diffusion models
+- U-Net architectures
+
+</div>
+</details>
+
+<details class="notes-group">
+<summary>3D Vision</summary>
+
+<div class="notes-group-content">
+
+- Gaussian Splatting
+- Camera geometry
+- Projection and Jacobians
+
+</div>
+</details>
+
+</div>

@@ -29,3 +29,58 @@ pre.sourceCode {
 h2 {
   margin-top: 2rem;
 }
+
+
+/* Collapsible groups on the Notes landing page */
+.notes-groups {
+  margin-top: 1.5rem;
+}
+
+.notes-group {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 12px;
+  margin-bottom: 0.9rem;
+  overflow: hidden;
+  background: var(--bs-body-bg);
+}
+
+.notes-group summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 1.1rem;
+  font-weight: 650;
+  padding: 1rem 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  user-select: none;
+}
+
+.notes-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.notes-group summary::before {
+  content: "+";
+  width: 1.4rem;
+  display: inline-block;
+  text-align: center;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.notes-group[open] summary::before {
+  content: "−";
+}
+
+.notes-group summary:hover {
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.notes-group-content {
+  padding: 0 1.2rem 1rem 3.35rem;
+}
+
+.notes-group-content li {
+  margin: 0.35rem 0;
+}
