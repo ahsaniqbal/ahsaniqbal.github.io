@@ -21,7 +21,7 @@ Before discussing quantization in more detail, it is useful to understand how so
 
 ### UINT8
 
-UINT8 is an 8-bit unsigned integer data type. Since 8 bits can represent (2^8=256) different values, UINT8 has a range from 0 to 255:
+UINT8 is an 8-bit unsigned integer data type. Since 8 bits can represent ($2^8=256$) different values, UINT8 has a range from 0 to 255:
 
 $$
 0 \leq x \leq 255.
@@ -88,4 +88,246 @@ $$
 $$
 
 This range will become particularly important later when mapping floating-point values to the INT8 quantization range.
+
+### FP32
+
+FP32, as the name suggests, is a data type used to represent a 32-bit floating-point number. The 32 bits are divided into three fields: 1 sign bit, 8 exponent bits, and 23 fraction bits.
+
+```text
+| Sign | Exponent | Fraction |
+|  1   |    8     |    23    |
+```
+
+The most significant bit is the sign bit. A value of `1` represents a negative number, while `0` represents a non-negative number. The exponent mainly determines the range of values that can be represented, while the fraction determines their precision.
+
+For a normal FP32 number, the value can be recovered using
+
+$$
+(-1)^s \times (1.f) \times 2^{E-127},
+$$
+
+where (s) is the sign bit, (f) is the fraction represented by the 23 fraction bits, and (E) is the unsigned integer represented by the 8 exponent bits. The value 127 is called the **exponent bias**.
+
+The (1) in (1.f) is known as the implicit or hidden leading bit. A normalized binary number always starts with (1), so this bit does not need to be stored explicitly. This effectively gives normal FP32 numbers 24 bits of significand precision while storing only 23 fraction bits.
+
+#### Decoding an FP32 Number
+
+Consider the following FP32 representation:
+
+```text
+1 | 01111011 | 10011000100000100000001
+```
+
+The sign bit is (1), so the number is negative. The exponent field gives
+
+$$
+E=01111011_2=123_{10}.
+$$
+
+Removing the exponent bias gives the actual exponent:
+
+$$
+e=E-127=123-127=-4.
+$$
+
+The fraction bits represent
+
+$$
+f=
+2^{-1}+2^{-4}+2^{-5}+2^{-9}+2^{-15}+2^{-23},
+$$
+
+which is approximately
+
+$$
+f=0.5957337618.
+$$
+
+Since this is a normal number, the complete significand is (1+f). The value represented by the FP32 bit pattern is therefore
+
+$$
+(-1)^1\times(1+0.5957337618)\times2^{-4}
+\approx -0.09973336.
+$$
+
+#### Exponent and Range
+
+The 8-bit exponent field can represent unsigned integers from 0 to 255. However, exponent values 0 and 255 are reserved for special cases. Normal FP32 numbers therefore use stored exponent values from 1 to 254.
+
+After subtracting the exponent bias of 127, the actual exponent of a normal FP32 number ranges from
+
+$$
+-126 \leq e \leq 127.
+$$
+
+The smallest positive normal FP32 number is obtained by using the smallest exponent, (e=-126), and setting all fraction bits to zero. The significand is therefore (1.0_2), giving
+
+$$
+1.0_2\times2^{-126}
+===================
+
+2^{-126}
+\approx1.175\times10^{-38}.
+$$
+
+The largest finite FP32 number uses the largest exponent, (e=127), and sets all 23 fraction bits to one. The largest possible significand is
+
+$$
+1.11111111111111111111111_2
+===========================
+
+2-2^{-23}.
+$$
+
+Therefore, the largest finite FP32 number is
+
+$$
+(2-2^{-23})\times2^{127}
+\approx3.403\times10^{38}.
+$$
+
+Thus, the largest finite magnitude representable in FP32 is approximately (3.403\times10^{38}). However, FP32 does not represent every real number between its minimum and maximum values. It contains a finite set of discrete values, and the spacing between those values depends on the exponent and the available fraction bits.
+
+#### Zero, Subnormal Numbers, Infinity, and NaN
+
+The stored exponent values 0 and 255 are reserved for special cases.
+
+When the exponent field contains all zeros and the fraction is also zero, the number represents zero. The sign bit determines whether it is positive or negative zero:
+
+```text
+0 | 00000000 | 00000000000000000000000   → +0
+
+1 | 00000000 | 00000000000000000000000   → -0
+```
+
+When the exponent field contains all zeros but the fraction is non-zero, the number is called a **subnormal number**. For subnormal numbers, the implicit leading (1) is replaced by (0), and the formula becomes
+
+$$
+(-1)^s\times(0.f)\times2^{-126}.
+$$
+
+Subnormal numbers allow FP32 to represent values smaller than the smallest normal value (2^{-126}).
+
+The smallest positive subnormal has only the least significant fraction bit set:
+
+```text
+0 | 00000000 | 00000000000000000000001
+```
+
+The least significant fraction bit has the value (2^{-23}). Therefore, the smallest positive non-zero FP32 value is
+
+$$
+2^{-23}\times2^{-126}
+=====================
+
+2^{-149}
+\approx1.401\times10^{-45}.
+$$
+
+At the other end of the exponent field, when all exponent bits are `1` and all fraction bits are `0`, the value represents infinity. The sign bit determines whether it is positive or negative infinity.
+
+When all exponent bits are `1` and the fraction is non-zero, the value represents **NaN (Not a Number)**.
+
+The special cases can therefore be summarized as:
+
+| Exponent     | Fraction | Representation         |
+| ------------ | -------- | ---------------------- |
+| all `0`s     | all `0`s | (+0) or (-0)           |
+| all `0`s     | non-zero | Subnormal              |
+| `1` to `254` | any      | Normal number          |
+| all `1`s     | all `0`s | (+\infty) or (-\infty) |
+| all `1`s     | non-zero | NaN                    |
+
+The overall FP32 representation can therefore be viewed as:
+
+```text
+Exponent = 00000000
+    ├── Fraction = 0       → ±0
+    └── Fraction ≠ 0       → Subnormal
+
+Exponent = 00000001 ... 11111110
+    └── Normal number
+
+Exponent = 11111111
+    ├── Fraction = 0       → ±Infinity
+    └── Fraction ≠ 0       → NaN
+```
+
+#### Encoding a Decimal Number as FP32
+
+Now consider the reverse problem: representing the decimal number (62.625_{10}) in FP32.
+
+First, convert the integer part to binary:
+
+$$
+62_{10}=111110_2.
+$$
+
+The fractional part is
+
+$$
+0.625_{10}=\frac{5}{8}
+=\frac{1}{2}+\frac{1}{8}
+=0.101_2.
+$$
+
+Therefore,
+
+$$
+62.625_{10}=111110.101_2.
+$$
+
+Normalize the binary representation:
+
+$$
+111110.101_2
+============
+
+1.11110101_2\times2^5.
+$$
+
+Since the number is positive, the sign bit is
+
+$$
+s=0.
+$$
+
+The actual exponent is (5). FP32 stores the biased exponent, so
+
+$$
+E=5+127=132.
+$$
+
+Converting 132 to binary gives
+
+$$
+132_{10}=10000100_2.
+$$
+
+The normalized significand is
+
+$$
+1.11110101_2.
+$$
+
+The leading (1) is implicit and is therefore not stored. The fraction field contains `11110101` followed by zeros until all 23 fraction bits are filled:
+
+```text
+Sign       Exponent        Fraction
+ 0         10000100        11110101000000000000000
+```
+
+Therefore, the FP32 representation of (62.625_{10}) is
+
+```text
+0 | 10000100 | 11110101000000000000000
+```
+
+In this example, (62.625) can be represented exactly in binary because
+
+$$
+0.625=\frac{5}{8}=\frac{5}{2^3}.
+$$
+
+Not every decimal fraction has a finite binary representation. Values such as (0.7_{10}) have an infinitely repeating binary representation and therefore have to be rounded to the nearest value that can be represented with the available FP32 fraction bits. This is one of the sources of rounding error in floating-point arithmetic.
 
