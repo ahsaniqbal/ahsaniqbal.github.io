@@ -1,8 +1,19 @@
 ---
-title: "Symmetric INT8 Quantization"
+title: "Quantization"
 date: 2026-08-17
 categories: [Quantization, PyTorch]
 ---
+
+Quantization is the process of mapping values from a high-precision numerical representation to a lower-precision representation with a smaller set of representable values. For example, values represented in FP32 can be quantized to INT8. Quantization generally introduces an error known as quantization error. Given an FP32 value (x), let (q) be its INT8 quantized representation and (\hat{x}) the value obtained after dequantization. The absolute quantization error can be written as
+
+> [
+> \epsilon_q = |x-\hat{x}|.
+> ]
+
+When quantizing a machine learning model, the goal is to significantly reduce the precision of its parameters with little to no degradation in model quality. Minimizing numerical quantization error does not necessarily guarantee minimum degradation in model quality, but it is still an important consideration when designing quantization methods.
+
+Quantization becomes particularly useful as deep learning models get larger. A model with 7 billion parameters stored in FP32 requires approximately 26 GiB just to store its weights, since each FP32 parameter takes 4 bytes. At least this much memory is needed just to load the weights for inference, which makes such models impractical for many edge devices. Quantizing the same weights to INT8 reduces the size to approximately 6.5 GiB, while INT4 reduces it further to approximately 3.25 GiB.
+
 
 ## Idea
 
