@@ -4,85 +4,88 @@ date: 2026-08-17
 categories: [Quantization, PyTorch]
 ---
 
-Quantization is the process of mapping values from a high-precision numerical representation to a lower-precision representation with a smaller set of representable values. For example, values represented in FP32 can be quantized to INT8. Quantization generally introduces an error known as quantization error. Given an FP32 value (x), let (q) be its INT8 quantized representation and (\hat{x}) the value obtained after dequantization. The absolute quantization error can be written as
+Quantization is the process of mapping values from a high-precision numerical representation to a lower-precision representation with a smaller set of representable values. For example, values represented in FP32 can be quantized to INT8. Quantization generally introduces an error known as quantization error. Given an FP32 value ($x$), let ($q$) be its INT8 quantized representation and ($\hat{x}$) the value obtained after dequantization. The absolute quantization error can be written as
 
-> [
-> \epsilon_q = |x-\hat{x}|.
-> ]
+$[
+\epsilon_q = |x-\hat{x}|.
+]$
 
 When quantizing a machine learning model, the goal is to significantly reduce the precision of its parameters with little to no degradation in model quality. Minimizing numerical quantization error does not necessarily guarantee minimum degradation in model quality, but it is still an important consideration when designing quantization methods.
 
 Quantization becomes particularly useful as deep learning models get larger. A model with 7 billion parameters stored in FP32 requires approximately 26 GiB just to store its weights, since each FP32 parameter takes 4 bytes. At least this much memory is needed just to load the weights for inference, which makes such models impractical for many edge devices. Quantizing the same weights to INT8 reduces the size to approximately 6.5 GiB, while INT4 reduces it further to approximately 3.25 GiB.
 
 
-## Idea
+## Basics
 
-For symmetric INT8 quantization, we map floating-point values to an integer range
-using a scale factor.
+Before discussing quantization in more detail, it is useful to understand how some of the commonly used data types are represented in memory. We will start with 8-bit integers and then move to floating-point representations such as FP32, FP16, and BF16.
 
-For a weight tensor \(W\), define
+### UINT8
 
-$$
-s = \frac{\max |W|}{127}.
-$$
+UINT8 is an 8-bit unsigned integer data type. Since 8 bits can represent (2^8=256) different values, UINT8 has a range from 0 to 255:
 
-The quantized value is
+[
+0 \leq x \leq 255.
+]
 
-$$
-q = \operatorname{round}\left(\frac{W}{s}\right),
-$$
+For example,
 
-with
+[
+5_{10}=00000101_2
+]
 
-$$
-q \in [-127,127].
-$$
+and
 
-The approximate dequantized value is
+[
+255_{10}=11111111_2.
+]
 
-$$
-\hat W = s q.
-$$
+### INT8
 
-## PyTorch example
+INT8 is the signed version of an 8-bit integer. It can represent values from (-128) to (127):
 
-```{python}
-import torch
+[
+-128 \leq x \leq 127.
+]
 
-weights = torch.tensor([-1.2, -0.2, 0.4, 1.0])
+In a two's complement representation, the most significant bit (MSB) indicates whether the value is negative or non-negative. An MSB of `0` represents a non-negative value, while an MSB of `1` represents a negative value. However, the MSB should not be thought of as a separate sign followed by seven magnitude bits; the complete 8-bit pattern represents the value.
 
-scale = weights.abs().max() / 127
-q = torch.round(weights / scale).clamp(-127, 127).to(torch.int8)
+Negative integers are commonly represented using **two's complement**. To obtain the two's complement of a number at a fixed bit width:
 
-print("scale:", scale)
-print("quantized:", q)
-print("dequantized:", q.float() * scale)
-```
+1. Write the number in binary using the required number of bits.
+2. Invert every bit.
+3. Add one.
 
-## Per-channel quantization
+For example, to represent (-5) as INT8, first write (5) using 8 bits:
 
-For a matrix
+[
+5_{10}=00000101_2.
+]
 
-$$
-W \in \mathbb{R}^{C_{out} \times C_{in}},
-$$
+Invert every bit:
 
-we can compute a separate scale for each output channel:
+[
+11111010_2.
+]
 
-```{python}
-weights = torch.randn(4, 16)
+Then add one:
 
-abs_max = weights.abs().max(dim=-1).values
-scales = abs_max / 127
+[
+11111010_2+1_2=11111011_2.
+]
 
-q = torch.round(weights / scales[:, None])
-q = q.clamp(-127, 127).to(torch.int8)
+Therefore,
 
-q.shape, scales.shape
-```
+[
+-5_{10}=11111011_2.
+]
 
-## Things worth remembering
+The same procedure can be applied to a negative two's complement representation to recover its positive counterpart. One special case is (-128), represented as (10000000_2). Its positive counterpart, (+128), cannot be represented by INT8 because the maximum positive INT8 value is (127).
 
-- Symmetric quantization usually uses zero-point \(z=0\).
-- Per-channel quantization generally reduces error compared with one scale for the whole tensor.
-- `127`, rather than `128`, is commonly used when keeping the range symmetric around zero.
+The asymmetric range of INT8 comes from the fact that 8 bits provide 256 possible bit patterns. In two's complement these patterns represent the values
+
+[
+-128,-127,\ldots,-1,0,1,\ldots,127.
+]
+
+This range will become particularly important later when mapping floating-point values to the INT8 quantization range.
+
