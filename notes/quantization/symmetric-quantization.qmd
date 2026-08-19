@@ -6,9 +6,9 @@ categories: [Quantization, PyTorch]
 
 Quantization is the process of mapping values from a high-precision numerical representation to a lower-precision representation with a smaller set of representable values. For example, values represented in FP32 can be quantized to INT8. Quantization generally introduces an error known as quantization error. Given an FP32 value ($x$), let ($q$) be its INT8 quantized representation and ($\hat{x}$) the value obtained after dequantization. The absolute quantization error can be written as
 
-$
+$$
 \epsilon_q = |x-\hat{x}|.
-$
+$$
 
 When quantizing a machine learning model, the goal is to significantly reduce the precision of its parameters with little to no degradation in model quality. Minimizing numerical quantization error does not necessarily guarantee minimum degradation in model quality, but it is still an important consideration when designing quantization methods.
 
@@ -23,29 +23,29 @@ Before discussing quantization in more detail, it is useful to understand how so
 
 UINT8 is an 8-bit unsigned integer data type. Since 8 bits can represent (2^8=256) different values, UINT8 has a range from 0 to 255:
 
-$
+$$
 0 \leq x \leq 255.
-$
+$$
 
 For example,
 
-$
+$$
 5_{10}=00000101_2
-$
+$$
 
 and
 
-$
+$$
 255_{10}=11111111_2.
-$
+$$
 
 ### INT8
 
 INT8 is the signed version of an 8-bit integer. It can represent values from (-128) to (127):
 
-$
+$$
 -128 \leq x \leq 127.
-$
+$$
 
 In a two's complement representation, the most significant bit (MSB) indicates whether the value is negative or non-negative. An MSB of `0` represents a non-negative value, while an MSB of `1` represents a negative value. However, the MSB should not be thought of as a separate sign followed by seven magnitude bits; the complete 8-bit pattern represents the value.
 
@@ -57,35 +57,35 @@ Negative integers are commonly represented using **two's complement**. To obtain
 
 For example, to represent (-5) as INT8, first write (5) using 8 bits:
 
-$
+$$
 5_{10}=00000101_2.
-$
+$$
 
 Invert every bit:
 
-$
+$$
 11111010_2.
-$
+$$
 
 Then add one:
 
-$
+$$
 11111010_2+1_2=11111011_2.
-$
+$$
 
 Therefore,
 
-$
+$$
 -5_{10}=11111011_2.
-$
+$$
 
 The same procedure can be applied to a negative two's complement representation to recover its positive counterpart. One special case is (-128), represented as (10000000_2). Its positive counterpart, (+128), cannot be represented by INT8 because the maximum positive INT8 value is (127).
 
 The asymmetric range of INT8 comes from the fact that 8 bits provide 256 possible bit patterns. In two's complement these patterns represent the values
 
-$
+$$
 -128,-127,\ldots,-1,0,1,\ldots,127.
-$
+$$
 
 This range will become particularly important later when mapping floating-point values to the INT8 quantization range.
 
