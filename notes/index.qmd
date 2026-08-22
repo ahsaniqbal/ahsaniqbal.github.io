@@ -13,7 +13,7 @@ plain-language explanations, mathematics, code, experiments, and references.
 
 <div class="notes-group-content">
 
-- [Basics](quantization/symmetric-quantization.qmd)
+- [Foundations](quantization/foundations.qmd)
 - [W8A16 Notebook](quantization/w8a16.ipynb)
 
 </div>

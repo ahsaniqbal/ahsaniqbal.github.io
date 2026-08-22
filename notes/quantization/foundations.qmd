@@ -1,7 +1,7 @@
 ---
 title: "Quantization"
 date: 2026-08-17
-categories: [Quantization, PyTorch]
+categories: [Quantization]
 ---
 
 Quantization is the process of mapping values from a high-precision numerical representation to a lower-precision representation with a smaller set of representable values. For example, values represented in FP32 can be quantized to INT8. Quantization generally introduces an error known as quantization error. Given an FP32 value ($x$), let ($q$) be its INT8 quantized representation and ($\hat{x}$) the value obtained after dequantization. The absolute quantization error can be written as
@@ -15,7 +15,7 @@ When quantizing a machine learning model, the goal is to significantly reduce th
 Quantization becomes particularly useful as deep learning models get larger. A model with 7 billion parameters stored in FP32 requires approximately 26 GiB just to store its weights, since each FP32 parameter takes 4 bytes. At least this much memory is needed just to load the weights for inference, which makes such models impractical for many edge devices. Quantizing the same weights to INT8 reduces the size to approximately 6.5 GiB, while INT4 reduces it further to approximately 3.25 GiB.
 
 
-## Basics
+## Data Types
 
 Before discussing quantization in more detail, it is useful to understand how some of the commonly used data types are represented in memory. We will start with 8-bit integers and then move to floating-point representations such as FP32, FP16, and BF16.
 
@@ -160,33 +160,25 @@ $$
 -126 \leq e \leq 127.
 $$
 
-The smallest positive normal FP32 number is obtained by using the smallest exponent, (e=-126), and setting all fraction bits to zero. The significand is therefore (1.0_2), giving
+The smallest positive normal FP32 number is obtained by using the smallest exponent, ($e=-126$), and setting all fraction bits to zero. The significand is therefore ($1.0_2$), giving
 
 $$
-1.0_2\times2^{-126}
-===================
-
-2^{-126}
-\approx1.175\times10^{-38}.
+1.0_2\times2^{-126} = 2^{-126} \approx1.175\times10^{-38}.
 $$
 
-The largest finite FP32 number uses the largest exponent, (e=127), and sets all 23 fraction bits to one. The largest possible significand is
+The largest finite FP32 number uses the largest exponent, ($e=127$), and sets all 23 fraction bits to one. The largest possible significand is
 
 $$
-1.11111111111111111111111_2
-===========================
-
-2-2^{-23}.
+1.11111111111111111111111_2=2-2^{-23}.
 $$
 
 Therefore, the largest finite FP32 number is
 
 $$
-(2-2^{-23})\times2^{127}
-\approx3.403\times10^{38}.
+(2-2^{-23})\times2^{127}\approx3.403\times10^{38}.
 $$
 
-Thus, the largest finite magnitude representable in FP32 is approximately (3.403\times10^{38}). However, FP32 does not represent every real number between its minimum and maximum values. It contains a finite set of discrete values, and the spacing between those values depends on the exponent and the available fraction bits.
+Thus, the largest finite magnitude representable in FP32 is approximately ($3.403\times10^{38}$). However, FP32 does not represent every real number between its minimum and maximum values. It contains a finite set of discrete values, and the spacing between those values depends on the exponent and the available fraction bits.
 
 #### Zero, Subnormal Numbers, Infinity, and NaN
 
@@ -206,7 +198,7 @@ $$
 (-1)^s\times(0.f)\times2^{-126}.
 $$
 
-Subnormal numbers allow FP32 to represent values smaller than the smallest normal value (2^{-126}).
+Subnormal numbers allow FP32 to represent values smaller than the smallest normal value ($2^{-126}$).
 
 The smallest positive subnormal has only the least significant fraction bit set:
 
@@ -214,14 +206,10 @@ The smallest positive subnormal has only the least significant fraction bit set:
 0 | 00000000 | 00000000000000000000001
 ```
 
-The least significant fraction bit has the value (2^{-23}). Therefore, the smallest positive non-zero FP32 value is
+The least significant fraction bit has the value ($2^{-23}$). Therefore, the smallest positive non-zero FP32 value is
 
 $$
-2^{-23}\times2^{-126}
-=====================
-
-2^{-149}
-\approx1.401\times10^{-45}.
+2^{-23}\times2^{-126}=2^{-149}\approx1.401\times10^{-45}.
 $$
 
 At the other end of the exponent field, when all exponent bits are `1` and all fraction bits are `0`, the value represents infinity. The sign bit determines whether it is positive or negative infinity.
@@ -235,7 +223,7 @@ The special cases can therefore be summarized as:
 | all `0`s     | all `0`s | (+0) or (-0)           |
 | all `0`s     | non-zero | Subnormal              |
 | `1` to `254` | any      | Normal number          |
-| all `1`s     | all `0`s | (+\infty) or (-\infty) |
+| all `1`s     | all `0`s | ($+\infty$) or ($-\infty$) |
 | all `1`s     | non-zero | NaN                    |
 
 The overall FP32 representation can therefore be viewed as:
@@ -255,7 +243,7 @@ Exponent = 11111111
 
 #### Encoding a Decimal Number as FP32
 
-Now consider the reverse problem: representing the decimal number (62.625_{10}) in FP32.
+Now consider the reverse problem: representing the decimal number ($62.625_{10}$) in FP32.
 
 First, convert the integer part to binary:
 
@@ -280,10 +268,7 @@ $$
 Normalize the binary representation:
 
 $$
-111110.101_2
-============
-
-1.11110101_2\times2^5.
+111110.101_2=1.11110101_2\times2^5.
 $$
 
 Since the number is positive, the sign bit is
@@ -317,7 +302,7 @@ Sign       Exponent        Fraction
  0         10000100        11110101000000000000000
 ```
 
-Therefore, the FP32 representation of (62.625_{10}) is
+Therefore, the FP32 representation of ($62.625_{10}$) is
 
 ```text
 0 | 10000100 | 11110101000000000000000
@@ -329,5 +314,134 @@ $$
 0.625=\frac{5}{8}=\frac{5}{2^3}.
 $$
 
-Not every decimal fraction has a finite binary representation. Values such as (0.7_{10}) have an infinitely repeating binary representation and therefore have to be rounded to the nearest value that can be represented with the available FP32 fraction bits. This is one of the sources of rounding error in floating-point arithmetic.
+Not every decimal fraction has a finite binary representation. Values such as ($0.7_{10}$) have an infinitely repeating binary representation and therefore have to be rounded to the nearest value that can be represented with the available FP32 fraction bits. This is one of the sources of rounding error in floating-point arithmetic.
 
+### FP16
+
+FP16, also known as **half-precision floating point**, is a 16-bit floating-point data type. It follows the same general representation as FP32 but uses fewer bits for both the exponent and fraction.
+
+```text
+| Sign | Exponent | Fraction |
+|  1   |    5     |    10    |
+```
+
+For normal FP16 numbers, the value is represented as
+
+$$
+(-1)^s \times (1.f) \times 2^{E-15},
+$$
+
+where the exponent bias is 15. The 5-bit exponent gives an actual exponent range of
+
+$$
+-14 \leq e \leq 15.
+$$
+
+The smallest positive normal FP16 value is
+
+$$
+2^{-14} \approx 6.10 \times 10^{-5},
+$$
+
+while the largest finite value is
+
+$$
+(2-2^{-10})\times2^{15}=65504.
+$$
+
+Subnormal numbers extend the lower end of the range, with the smallest positive non-zero value being
+
+$$
+2^{-24}\approx5.96\times10^{-8}.
+$$
+
+FP16 stores only 10 fraction bits compared with 23 in FP32, resulting in lower precision. Its exponent is also considerably smaller, resulting in a much smaller numerical range. The advantage is that each FP16 value requires only 2 bytes of memory compared with 4 bytes for FP32.
+
+### BF16
+
+BF16, or **bfloat16**, is another 16-bit floating-point data type. Unlike FP16, BF16 keeps the same number of exponent bits as FP32 and reduces most of the bits from the fraction.
+
+```text
+| Sign | Exponent | Fraction |
+|  1   |    8     |     7    |
+```
+
+For normal BF16 numbers, the value is represented as
+
+$$
+(-1)^s \times (1.f) \times 2^{E-127}.
+$$
+
+Since BF16 uses the same 8-bit exponent and exponent bias of 127 as FP32, its actual exponent range is also
+
+$$
+-126 \leq e \leq 127.
+$$
+
+The smallest positive normal BF16 value is therefore the same as FP32:
+
+$$
+2^{-126}\approx1.175\times10^{-38}.
+$$
+
+The largest finite BF16 value is
+
+$$
+(2-2^{-7})\times2^{127}
+\approx3.390\times10^{38}.
+$$
+
+BF16 has only 7 stored fraction bits, giving it significantly lower precision than both FP32 and FP16. However, retaining 8 exponent bits gives BF16 approximately the same numerical range as FP32 while requiring only 16 bits per value.
+
+This is the main difference between FP16 and BF16. Both require 2 bytes per value, but they distribute their available bits differently:
+
+$$
+\text{FP16: more precision, smaller range}
+$$
+
+$$
+\text{BF16: less precision, much larger range}
+$$
+
+This trade-off is particularly useful in deep learning, where having a large numerical range can be important for avoiding overflow and underflow during computation.
+
+### FP32 vs FP16 vs BF16
+
+| Property                   |                         FP32 |                       FP16 |                         BF16 |
+| -------------------------- | ---------------------------: | -------------------------: | ---------------------------: |
+| Total bits                 |                           32 |                         16 |                           16 |
+| Sign bits                  |                            1 |                          1 |                            1 |
+| Exponent bits              |                            8 |                          5 |                            8 |
+| Fraction bits              |                           23 |                         10 |                            7 |
+| Effective significand bits |                           24 |                         11 |                            8 |
+| Exponent bias              |                          127 |                         15 |                          127 |
+| Normal exponent range      |              (-126) to (127) |              (-14) to (15) |              (-126) to (127) |
+| Smallest positive normal   | ($\approx1.175\times10^{-38}$) | ($\approx6.10\times10^{-5}$) | ($\approx1.175\times10^{-38}$) |
+| Largest finite value       |  ($\approx3.403\times10^{38}$) |                    (65504) |  ($\approx3.390\times10^{38}$) |
+| Storage per value          |                      4 bytes |                    2 bytes |                      2 bytes |
+| Relative precision         |                      Highest |                     Medium |                       Lowest |
+| Relative range             |                        Large |                      Small |                        Large |
+
+The bit allocation makes the main trade-off visible:
+
+```text
+FP32: | S | EEEEEEEE | FFFFFFFFFFFFFFFFFFFFFFF |
+FP16: | S | EEEEE    | FFFFFFFFFF              |
+BF16: | S | EEEEEEEE | FFFFFFF                 |
+```
+
+FP16 uses its limited 16-bit budget to retain more fraction bits, giving it better precision than BF16 but a considerably smaller range. BF16 instead preserves FP32's 8-bit exponent, giving up fraction bits in exchange for a range close to that of FP32.
+
+### Conclusion
+
+In this article, we introduced the motivation behind model quantization and reviewed the numerical representations commonly encountered in deep learning. We looked at INT8 and two's complement representation, followed by FP32, FP16, and BF16 and the trade-offs they make between numerical range, precision, and memory requirements.
+
+Understanding these representations provides the foundation for understanding quantization. We now know what it means to move from a higher-precision representation such as FP32 to a lower-precision representation such as INT8, and that doing so generally introduces quantization error.
+
+The next question is: **how do we map a range of floating-point values to a limited set of integer values while keeping this error as small as possible?**
+
+This leads naturally to **linear quantization**, which we will explore next.
+
+## References
+
+- [DeepLearning.AI — *Quantization Fundamentals with Hugging Face*](https://www.deeplearning.ai/courses/quantization-fundamentals/)
