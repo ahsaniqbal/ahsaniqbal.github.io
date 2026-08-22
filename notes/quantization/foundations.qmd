@@ -432,7 +432,7 @@ BF16: | S | EEEEEEEE | FFFFFFF                 |
 
 FP16 uses its limited 16-bit budget to retain more fraction bits, giving it better precision than BF16 but a considerably smaller range. BF16 instead preserves FP32's 8-bit exponent, giving up fraction bits in exchange for a range close to that of FP32.
 
-### Conclusion
+## Conclusion
 
 In this article, we introduced the motivation behind model quantization and reviewed the numerical representations commonly encountered in deep learning. We looked at INT8 and two's complement representation, followed by FP32, FP16, and BF16 and the trade-offs they make between numerical range, precision, and memory requirements.
 
