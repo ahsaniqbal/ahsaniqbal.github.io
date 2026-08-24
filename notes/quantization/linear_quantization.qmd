@@ -1,0 +1,591 @@
+---
+title: "Linear Quantization"
+date: 2026-08-24
+categories: [Quantization, Python]
+---
+
+Linear (or **uniform**) quantization uses a linear mapping to transform values from a high-precision range into a lower-precision range. Given a high-precision value ($x$), its corresponding quantized value ($q$) can be expressed as
+
+$$
+q = \frac{x}{s} + z,
+$$
+
+where:
+
+* ($s$) is the **scale** (or step size), which determines how much of the original range is represented by one quantization step.
+* ($z$) is the **zero-point**, which determines which quantized value corresponds to ($x=0$).
+
+When mapping floating-point values to integers, the result must also be rounded to a discrete integer and restricted to the range supported by the target data type. Therefore, the complete quantization operation is
+
+$$
+q = \operatorname{clamp}
+\left(
+\operatorname{round}\left(\frac{x}{s}+z\right),
+q_{\min},q_{\max}
+\right),
+$$
+
+where ($q_{min}$) and ($q_{max}$) denote the minimum and maximum values representable by the quantized data type.
+
+For example, for an unsigned 8-bit integer,
+
+$$
+q_{min}=0,\qquad q_{max}=255,
+$$
+
+while for a signed 8-bit integer,
+
+$$
+q_{min}=-128,\qquad q_{max}=127.
+$$
+
+### Dequantization
+
+A quantized value can be mapped back to the high-precision domain through **dequantization**:
+
+$$
+\hat{x}=s(q-z).
+$$
+
+Here, ($\hat{x}$) is used rather than ($x$) because quantization is generally **lossy**. Multiple high-precision values may be mapped to the same quantized integer due to rounding, so the original value cannot, in general, be recovered exactly.
+
+Thus, the overall transformation is
+
+$$
+x\xrightarrow{\text{quantization}}q\xrightarrow{\text{dequantization}}\hat{x}.
+$$
+
+### Determining the Scale and Zero-Point
+
+Suppose the range of high-precision values to be represented is
+
+$$
+[x_{min},x_{max}],
+$$
+
+and the available quantized range is
+
+$$
+[q_{min},q_{max}].
+$$
+
+To linearly map the endpoints of the two ranges, we require
+
+$$
+x_{min}=s(q_{min}-z)
+$$
+
+and
+
+$$
+x_{max}=s(q_{max}-z).
+$$
+
+Subtracting the first equation from the second gives
+
+$$
+x_{max}-x_{min}=s(q_{max}-q_{min}).
+$$
+
+Therefore, the scale is
+
+$$
+\boxed{
+s=
+\frac{x_{\max}-x_{\min}}
+{q_{\max}-q_{\min}}
+}
+$$
+
+Once ($s$) is known, the zero-point can be obtained by rearranging either endpoint equation. Using the first one,
+
+$$
+x_{min}=s(q_{min}-z),
+$$
+
+we obtain
+
+$$
+z=q_{min}-\frac{x_{min}}{s}
+$$
+
+Since the zero-point itself must be representable in the quantized integer domain, in practice it is rounded and clamped:
+
+$$
+\boxed{
+z=
+\operatorname{clamp}
+\left(
+\operatorname{round}
+\left(
+q_{\min}-\frac{x_{\min}}{s}
+\right),
+q_{\min},
+q_{\max}
+\right)
+}
+$$
+
+The resulting pair $(s,z)$ defines the linear mapping between the high-precision and quantized domains:
+
+$$
+\boxed{
+q=
+\operatorname{clamp}
+\left(
+\operatorname{round}
+\left(
+\frac{x}{s}+z
+\right),
+q_{\min},
+q_{\max}
+\right)
+}
+$$
+
+and
+
+$$
+\boxed{
+\hat{x}=s(q-z)
+}
+$$
+
+The scale ($s$) controls the **spacing between adjacent representable values**, while the zero-point ($z$) shifts the quantization grid so that the real value (0) can be represented exactly.
+
+### Linear Quantization in Practice 
+
+In this section, let us walk through quantizing a small toy example. Consider the following FP32 tensor:
+
+$$
+x=[-1.2,-0.3,0.0,0.7,1.5].
+$$
+
+Suppose we want to quantize it to INT8. For signed 8-bit integers,
+
+$$
+q_{min}=-128,\qquad q_{max}=127.
+$$
+
+To determine the quantization parameters, we first need the minimum and maximum values of the input tensor:
+
+$$
+x_{min}=-1.2,\qquad x_{max}=1.5.
+$$
+
+The scale is
+
+$$
+s=\frac{x_{max}-x_{min}}{q_{max}-q_{min}}=\frac{1.5-(-1.2)}{127-(-128)}=\frac{2.7}{255}\approx 0.01059.
+$$
+
+Next, we compute the zero-point:
+
+$$
+z=\operatorname{clamp}\left(\operatorname{round}\left(q_{min}-\frac{x_{min}}{s}\right),-128,127\right).
+$$
+
+Substituting the values,
+
+$$
+z=\operatorname{clamp}\left(\operatorname{round}\left(-128-\frac{-1.2}{0.01059}\right),-128,127\right)=-15.
+$$
+
+Now that the scale and zero-point are known, the tensor can be quantized using
+
+$$
+q=\operatorname{clamp}\left(\operatorname{round}\left(\frac{x}{s}+z\right),-128,127\right).
+$$
+
+Applying this operation element-wise gives
+
+$$
+q=[-128,-43,-15,51,127].
+$$
+
+We can then dequantize the INT8 tensor using
+
+$$
+\hat{x}=s(q-z).
+$$
+
+This gives
+
+$$
+\hat{x}\approx[-1.196,-0.296,0.0,0.699,1.504].
+$$
+
+Notice that the dequantized values are close to, but not necessarily identical to, the original FP32 values:
+
+$$
+x=[-1.2,-0.3,0.0,0.7,1.5]
+$$
+
+$$
+\hat{x}\approx[-1.196,-0.296,0.0,0.699,1.504].
+$$
+
+The small differences arise from the rounding involved during quantization. This illustrates the lossy nature of quantization: several high-precision values may map to the same discrete integer value.
+
+Now let's implement these functions using PyTorch.
+
+```{python}
+import torch
+
+
+def calculate_quantization_params(
+    x: torch.Tensor,
+    q_min: int = -128,
+    q_max: int = 127,
+) -> tuple[float, int]:
+    x_min = x.min().item()
+    x_max = x.max().item()
+
+    scale = (x_max - x_min) / (q_max - q_min)
+
+    zero_point = round(q_min - x_min / scale)
+    zero_point = max(q_min, min(q_max, zero_point))
+
+    return scale, zero_point
+```
+
+```{python}
+def quantize(
+    x: torch.Tensor,
+    scale: float,
+    zero_point: int,
+    q_min: int = -128,
+    q_max: int = 127,
+) -> torch.Tensor:
+    q = torch.round(x / scale + zero_point)
+    q = torch.clamp(q, q_min, q_max)
+
+    return q.to(torch.int8)
+
+
+def dequantize(
+    q: torch.Tensor,
+    scale: float,
+    zero_point: int,
+) -> torch.Tensor:
+    return scale * (q.float() - zero_point)
+```
+
+Let's apply the implementation to our previous example.
+
+```{python}
+x = torch.tensor(
+    [-1.2, -0.3, 0.0, 0.7, 1.5],
+    dtype=torch.float32,
+)
+
+scale, zero_point = calculate_quantization_params(x)
+
+q = quantize(x, scale, zero_point)
+x_hat = dequantize(q, scale, zero_point)
+
+print(f"Scale:       {scale:.5f}")
+print(f"Zero point:  {zero_point}")
+print(f"Quantized:   {q}")
+print(f"Dequantized: {x_hat}")
+```
+
+### Symmetric Linear Quantization
+
+The linear quantization scheme discussed so far is commonly referred to as **asymmetric linear quantization**. This is because the real-valued range does not have to be symmetric around zero, and a non-zero zero-point ($z$) is used to shift the quantized representation accordingly.
+
+Another variant is **symmetric linear quantization**. In symmetric quantization, the real-valued and quantized ranges are chosen to be symmetric around zero. As a result, the zero-point is fixed to
+
+$$
+z=0.
+$$
+
+Therefore, the quantization equation simplifies from
+
+$$
+q=\operatorname{clamp}\left(\operatorname{round}\left(\frac{x}{s}+z\right),q_{min},q_{max}\right)
+$$
+
+to
+
+$$
+q=\operatorname{clamp}\left(\operatorname{round}\left(\frac{x}{s}\right),q_{min},q_{max}
+\right).
+$$
+
+Similarly, the dequantization equation
+
+$$
+\hat{x}=s(q-z)
+$$
+
+simplifies to
+
+$$
+\hat{x}=sq.
+$$
+
+To construct a symmetric mapping, we first choose a symmetric quantized range. For INT8, although the data type itself can represent
+
+$$
+[-128,127],
+$$
+
+a commonly used symmetric range is
+
+$$
+[-127,127].
+$$
+
+Thus,
+
+$$
+q_{\min}=-127,\qquad q_{\max}=127.
+$$
+
+This leaves (-128) unused, but ensures that the quantized range is symmetric around zero:
+
+$$
+q_{\min}=-q_{\max}.
+$$
+
+Next, we determine the largest absolute magnitude in the input tensor:
+
+$$
+\alpha=\max(|x|).
+$$
+
+Rather than using the original ($x_{min}$) and ($x_{max}$) directly, we construct the symmetric real-valued range
+
+$$
+[-\alpha,\alpha].
+$$
+
+Therefore, the endpoints of the mapping are
+
+$$
+x_{\min}^{\text{sym}}=-\alpha,
+\qquad
+x_{\max}^{\text{sym}}=\alpha.
+$$
+
+The scale can then be calculated using the same relation derived previously:
+
+$$
+s=
+\frac{x_{\max}^{\text{sym}}-x_{\min}^{\text{sym}}}
+{q_{\max}-q_{\min}}.
+$$
+
+Since both ranges are symmetric,
+
+$$
+s=
+\frac{\alpha-(-\alpha)}
+{127-(-127)}=\frac{2\alpha}{254}=\frac{\alpha}{127}.
+$$
+
+Thus, symmetric INT8 quantization can be summarized as
+
+$$
+\boxed{
+\alpha=\max(|x|)
+}
+$$
+
+$$
+\boxed{
+s=\frac{\alpha}{127}
+}
+$$
+
+followed by
+
+$$
+\boxed{
+q=
+\operatorname{clamp}
+\left(
+\operatorname{round}\left(\frac{x}{s}\right),
+-127,127
+\right)
+}
+$$
+
+and dequantization
+
+$$
+\boxed{
+\hat{x}=sq
+}
+$$
+
+The main difference from asymmetric quantization is therefore that symmetric quantization fixes the zero-point to (z=0) and constructs a range symmetric around zero. This simplifies the mapping, although it may leave part of the available range unused when the original distribution itself is asymmetric.
+
+### Granularity of Quantization
+
+So far, we have discussed **per-tensor quantization**, where a single scale ($s$) and, in the case of asymmetric quantization, a single zero-point ($z$) are used for the entire tensor.
+
+Per-tensor quantization lies on the coarse end of the quantization-granularity spectrum. It has very little metadata overhead, since only one scale and zero-point need to be stored for the entire tensor. However, this can come at the cost of higher **quantization error**, especially when different regions of the tensor have significantly different value ranges.
+
+For example, suppose different regions of a tensor contain values approximately within the ranges
+
+$$
+[-1,1], \qquad [-10,10], \qquad [-100,100].
+$$
+
+With per-tensor symmetric quantization, the scale must accommodate the overall range $[-100,100]$. Consequently, the same relatively large quantization step is also used for values in $[-1,1]$, even though a much smaller scale could represent those values more accurately.
+
+This motivates the use of finer quantization granularities.
+
+#### Per-Channel / Per-Dimension Quantization
+
+Instead of using a single set of quantization parameters for the entire tensor, we can calculate quantization parameters independently along a particular dimension, or **axis**, of the tensor.
+
+Consider a two-dimensional tensor
+
+$$
+X\in\mathbb{R}^{N\times M}.
+$$
+
+Suppose we choose the first dimension such that each row is quantized independently. Instead of a single scale ($s$), we now have
+
+$$
+s_1,s_2,\ldots,s_N,
+$$
+
+where ($s_i$) is calculated from the values in row (i).
+
+For asymmetric quantization, each row additionally receives its own zero-point:
+
+$$
+z_1,z_2,\ldots,z_N.
+$$
+
+The quantization parameters can therefore be viewed as vectors rather than scalars:
+
+$$
+\mathbf{s}\in\mathbb{R}^{N},
+\qquad
+\mathbf{z}\in\mathbb{Z}^{N}.
+$$
+
+For an element ($x_{ij}$) in row (i), quantization becomes
+
+$$
+q_{ij}=\operatorname{clamp}\left(\operatorname{round}\left(\frac{x_{ij}}{s_i}+z_i\right),q_{\min},q_{\max}\right).
+$$
+
+Thus, every value within a row shares the same quantization parameters, while different rows may use different parameters.
+
+This improves the ability of the quantization grid to adapt to different value ranges. For example, a row containing values in $[-1,1]$ can use a much smaller scale than another row containing values in $[-100,100]$.
+
+The improvement comes at the cost of additional metadata. With per-tensor quantization, only one scale is required. With (N) independently quantized rows, (N) scales are required.
+
+If each scale is stored as an FP32 value, the scales require
+
+$$
+4N\text{ bytes}
+$$
+
+instead of
+
+$$
+4\text{ bytes}.
+$$
+
+Therefore, compared with per-tensor quantization, the additional storage required for the scales is
+
+$$
+(N-1)\times4\text{ bytes}.
+$$
+
+For asymmetric quantization, additional storage is also required for the (N) zero-points, with the exact overhead depending on the datatype used to store them.
+
+The same idea can be applied along columns instead of rows. More generally, per-channel or per-dimension quantization means selecting an axis of the tensor and calculating independent quantization parameters for slices along that axis.
+
+#### Group Quantization
+
+We can increase the granularity further using **group quantization**.
+
+Instead of assigning one set of quantization parameters to an entire row or column, values along a chosen dimension are divided into smaller groups. Each group is quantized independently and receives its own scale and, for asymmetric quantization, its own zero-point.
+
+For example, consider a row containing (M) values:
+
+$$
+[x_1,x_2,\ldots,x_M].
+$$
+
+Given a group size (G), the row can be divided into groups such as
+
+$$
+[x_1,\ldots,x_G],
+\qquad
+[x_{G+1},\ldots,x_{2G}],
+\qquad
+\ldots
+$$
+
+Each group then receives an independent scale:
+
+$$
+s_1,s_2,\ldots
+$$
+
+and, when using asymmetric quantization, an independent zero-point.
+
+Assuming (M) is divisible by (G), each row requires
+
+$$
+\frac{M}{G}
+$$
+
+sets of quantization parameters. For a tensor containing (N) such rows, this gives
+
+$$
+N\frac{M}{G}
+$$
+
+sets of quantization parameters.
+
+A smaller group size allows the quantization parameters to adapt more closely to local variations in the tensor and can therefore reduce quantization error. However, it also increases the amount of metadata that must be stored.
+
+At the extremes, this gives us a useful way to think about quantization granularity:
+
+$$
+\text{Per-tensor}
+\longrightarrow;
+\text{Per-channel}
+\longrightarrow;
+\text{Per-group}
+$$
+
+with progressively finer control over the quantization parameters.
+
+In general,
+
+$$
+\boxed{
+\text{Finer granularity}
+\Longrightarrow
+\text{potentially lower quantization error}
++
+\text{higher metadata overhead}
+}
+$$
+
+while
+
+$$
+\boxed{
+\text{Coarser granularity}
+\Longrightarrow
+\text{lower metadata overhead}
++
+\text{potentially higher quantization error}
+}
+$$
+
+Quantization granularity therefore represents a trade-off between **numerical accuracy, storage efficiency, and implementation complexity**.
+
+
