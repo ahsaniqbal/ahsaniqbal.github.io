@@ -32,6 +32,9 @@ jobs:
       - name: Install Jupyter
         run: pip install jupyter 
           
+      - name: Install numpy
+        run: pip install numpy
+          
       - name: Install PyTorch CPU
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
