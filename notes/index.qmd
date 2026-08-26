@@ -15,6 +15,7 @@ plain-language explanations, mathematics, code, experiments, and references.
 
 - [Foundations](quantization/foundations.qmd)
 - [Linear Qunatization](quantization/linear_quantization.qmd)
+- [Quantizing Neural Networks](quantization/quantizing_nn.qmd)
 - [W8A16 Notebook](quantization/w8a16.ipynb)
 
 </div>

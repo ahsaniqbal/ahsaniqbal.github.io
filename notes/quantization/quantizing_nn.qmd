@@ -1,0 +1,447 @@
+---
+title: "Quantizing Neural Networks"
+date: 2026-08-25
+categories: [Quantization, Python, Pytorch]
+---
+
+In the previous article, we introduced linear quantization and saw how floating-point values can be represented using lower-precision integers. We now turn our attention to applying these ideas to neural networks.
+
+Given a pre-trained neural network, we can broadly choose to quantize:
+
+* only the **weights**,
+* only the **activations**, or
+* both the **weights and activations**.
+
+These choices have different implications for memory usage, computational efficiency, and the arithmetic performed during inference.
+
+### Weight-Only Quantization
+
+In **weight-only quantization**, model weights are stored in a quantized representation, while activations remain in floating point.
+
+For example, the weights might be stored as INT8, while the activations remain in FP32, FP16, or BF16.
+
+This can provide a significant reduction in model size and memory bandwidth, since the weights require fewer bits per parameter.
+
+Suppose the quantized weights $(Q_W)$ have scale $(s_W)$ and zero-point $(z_W)$. The corresponding floating-point approximation of the weights is
+
+$$
+\hat{W}=s_W(Q_W-z_W).
+$$
+
+Conceptually, we could first dequantize the weights and then perform the operation in floating point:
+
+$$
+Y=X\hat{W}.
+$$
+
+However, explicitly constructing the entire dequantized weight tensor before every operation would reduce some of the benefits of storing the weights in a compressed representation.
+
+In practice, optimized weight-only kernels can fuse dequantization with the matrix multiplication. The weights therefore remain compressed in memory and are reconstructed, often in small blocks, as they are consumed by the computation.
+
+Weight-only quantization therefore primarily targets **model size and memory bandwidth**, although optimized kernels and supported hardware can also provide inference speedups.
+
+### Activation-Only Quantization
+
+In **activation-only quantization**, activations are represented using a lower-precision datatype while the model weights remain in floating point.
+
+There is an important difference between quantizing weights and quantizing activations.
+
+Once a model has been trained, its weights are fixed. Therefore, given a weight tensor \(W\), we can directly inspect its values and determine its quantization parameters. For example, with asymmetric per-tensor quantization,
+
+$$
+w_{\min}=\min(W),
+\qquad
+w_{\max}=\max(W),
+$$
+
+from which $s_W$ and $z_W$ can be calculated.
+
+Activations, however, are **input-dependent**. For some layer \(l\),
+
+$$
+X_l=f_l(X_{l-1}),
+$$
+
+and therefore the range of $X_l$ can change depending on the input passed through the network.
+
+Consequently, the activation quantization parameters cannot always be determined simply by inspecting the trained model. We need some way of determining or estimating the range of values that an activation tensor may take.
+
+There are two broad approaches.
+
+### Dynamic Quantization Parameters
+
+One approach is to determine the quantization parameters from the activation tensor available at runtime.
+
+Given an activation tensor \(X\), we can calculate
+
+$$
+x_{\min}=\min(X),
+\qquad
+x_{\max}=\max(X),
+$$
+
+and use these values to calculate $s_X$ and $z_X$.
+
+The activation is then quantized using these dynamically calculated parameters.
+
+Conceptually,
+
+$$
+X
+\longrightarrow
+(x_{\min},x_{\max})
+\longrightarrow
+(s_X,z_X)
+\longrightarrow
+Q_X.
+$$
+
+This allows the quantization range to adapt to each runtime activation tensor. However, calculating the range and quantization parameters during inference introduces additional computational overhead.
+
+### Precomputed Quantization Parameters
+
+Another approach is to determine the activation quantization parameters **before inference**.
+
+Since activations depend on the input, we cannot determine their representative ranges from the model weights alone. Instead, a collection of representative input samples can be passed through the network while observing the activations produced at different layers.
+
+These observations can then be used to estimate suitable activation ranges and consequently determine $s_X$ and $z_X$ ahead of inference.
+
+This process is generally known as **calibration**.
+
+Once the parameters have been determined, they can be reused during inference:
+
+$$
+X
+\xrightarrow[\text{precomputed }s_X,z_X]{\text{quantize}}
+Q_X.
+$$
+
+This avoids calculating the quantization parameters from every activation tensor at runtime, but the quality of the resulting quantization depends on how well the chosen ranges represent the activations encountered during actual inference.
+
+We will examine calibration and the different ways of determining these ranges in more detail when discussing post-training quantization.
+
+### Computing with Quantized Activations
+
+If only the activations are quantized while the weights remain floating point, we have
+
+$$
+\hat{X}=s_X(Q_X-z_X),
+$$
+
+while \(W\) remains floating point.
+
+Conceptually, the computation is therefore
+
+$$
+Y=\hat{X}W.
+$$
+
+Since one operand is quantized while the other remains floating point, activation-only quantization does not directly give us a conventional integer matrix multiplication such as
+
+$$
+\text{INT8}\times\text{INT8}.
+$$
+
+Depending on the hardware and implementation, the activation may be converted to a compatible representation as part of the computation, or specialized mixed-precision kernels may be used.
+
+
+### Quantizing Both Weights and Activations
+
+Integer arithmetic becomes particularly interesting when **both operands are quantized**.
+
+Suppose
+
+$$
+\hat{W}=s_W(Q_W-z_W)
+$$
+
+and
+
+$$
+\hat{X}=s_X(Q_X-z_X).
+$$
+
+Then the matrix multiplication
+
+$$
+Y=\hat{X}\hat{W}
+$$
+
+can be written as
+
+$$
+Y=s_Xs_W(Q_X-z_X)(Q_W-z_W).
+$$
+
+The core matrix multiplication can therefore be expressed in terms of integer values.
+
+For symmetric quantization,
+
+$$
+z_X=z_W=0,
+$$
+
+so the expression simplifies to
+
+$$
+Y=s_Xs_W(Q_XQ_W).
+$$
+
+The multiplication itself can now operate on quantized integer values.
+
+Typically, INT8 inputs are multiplied while their products are accumulated into a wider integer datatype, commonly INT32, to provide sufficient range for the sum of many products.
+
+If we define the integer accumulator as
+
+$$
+A=Q_XQ_W,
+$$
+
+then
+
+$$
+Y=s_Xs_WA.
+$$
+
+At this point, $A$ is an integer tensor, while $s_Xs_W$ determines how its values correspond to the real-valued output.
+
+However, if the next layer also expects quantized activations, converting the entire accumulator to floating point only to quantize it again would introduce unnecessary intermediate work.
+
+Instead, we can transform the accumulator directly into the quantized representation required by the next layer.
+
+### Requantization
+
+Suppose the output $Y$ should itself be represented by a quantized tensor $Q_Y$, with scale $s_Y$ and zero-point $z_Y$:
+
+$$
+\hat{Y}=s_Y(Q_Y-z_Y).
+$$
+
+For simplicity, consider symmetric quantization, where
+
+$$
+z_X=z_W=z_Y=0.
+$$
+
+We therefore have
+
+$$
+\hat{X}=s_XQ_X,
+$$
+
+$$
+\hat{W}=s_WQ_W,
+$$
+
+and
+
+$$
+\hat{Y}=s_YQ_Y.
+$$
+
+From the matrix multiplication,
+
+$$
+\hat{Y}=s_Xs_WA,
+$$
+
+where
+
+$$
+A=Q_XQ_W
+$$
+
+is the integer accumulator.
+
+Equating the two representations gives
+
+$$
+s_YQ_Y=s_Xs_WA.
+$$
+
+Solving for $Q_Y$,
+
+$$
+Q_Y=\operatorname{round}\left(\frac{s_Xs_W}{s_Y}A\right).
+$$
+
+Since $Q_Y$ must remain within the range supported by its target datatype, the result is also clamped:
+
+$$
+\boxed{
+Q_Y
+=
+\operatorname{clamp}
+\left(
+\operatorname{round}
+\left(
+\frac{s_Xs_W}{s_Y}A
+\right),
+q_{\min},
+q_{\max}
+\right)
+}
+$$
+
+This operation is commonly referred to as **requantization**.
+
+The quantity
+
+$$
+\frac{s_Xs_W}{s_Y}
+$$
+
+can be viewed as the **requantization multiplier**: it converts values from the scale of the integer accumulator into the scale expected by the output quantized tensor.
+
+The overall flow can therefore be viewed as
+
+```text
+Q_X (INT8) ──┐
+             │
+             ├── Integer MatMul ──> INT32 accumulator
+             │                         │
+Q_W (INT8) ──┘                         │
+                                       ▼
+                               Requantization
+                                  s_X s_W
+                                  ───────
+                                     s_Y
+                                       │
+                                       ▼
+                                  round + clamp
+                                       │
+                                       ▼
+                                   Q_Y (INT8)
+                                       │
+                                       ▼
+                                    Next layer
+```
+
+Instead of materializing a complete floating-point activation tensor between two quantized layers, the INT32 accumulator can therefore be requantized directly into the integer representation expected by the next layer.
+
+### A Simple Example
+
+Suppose
+
+$$
+s_X=0.02,
+\qquad
+s_W=0.04,
+\qquad
+s_Y=0.05.
+$$
+
+The requantization multiplier is
+
+$$
+\frac{s_Xs_W}{s_Y}
+=
+\frac{0.02\times0.04}{0.05}
+=
+0.016.
+$$
+
+Suppose the integer matrix multiplication produces an accumulator value
+
+$$
+A=1000.
+$$
+
+Then
+
+$$
+Q_Y
+=
+\operatorname{round}(0.016\times1000)
+=
+16.
+$$
+
+Conceptually, we therefore transform the INT32 accumulator value
+
+$$
+1000
+$$
+
+directly into the INT8 output value
+
+$$
+16
+$$
+
+without first materializing the complete floating-point activation tensor.
+
+Notice that the corresponding real-valued result would be
+
+$$
+Y=s_Xs_WA
+=
+0.02\times0.04\times1000
+=
+0.8.
+$$
+
+The quantized output represents the same value because
+
+$$
+s_YQ_Y
+=
+0.05\times16
+=
+0.8.
+$$
+
+## Integer-Only Requantization
+
+There is still one apparent floating-point quantity in the requantization equation:
+
+$$
+\frac{s_Xs_W}{s_Y}.
+$$
+
+In implementations targeting integer-only inference, this multiplier can itself be approximated using fixed-point arithmetic.
+
+Conceptually, we can approximate the real-valued multiplier \(m\) as
+
+$$
+m=
+\frac{s_Xs_W}{s_Y}
+\approx
+\frac{M}{2^n},
+$$
+
+where $M$ and $n$ are integers.
+
+Requantization can then be approximated as
+
+$$
+Q_Y
+\approx
+\operatorname{round}
+\left(
+\frac{MA}{2^n}
+\right).
+$$
+
+The multiplication $MA$ is an integer multiplication, while division by $2^n$ can be implemented using an appropriate right shift, together with the required rounding logic.
+
+The result is finally clamped to the target integer range.
+
+This allows implementations to perform the requantization step without requiring floating-point arithmetic in the core integer inference path.
+
+## Hardware Considerations
+
+Quantization does not automatically make inference faster.
+
+Actual performance depends heavily on whether the target hardware and software stack provide efficient instructions and optimized kernels for the chosen quantized datatypes.
+
+Some CPUs, GPUs, and specialized AI accelerators provide highly optimized low-precision matrix multiplication and convolution operations. On hardware without efficient support for a particular quantized format, however, the overhead associated with quantization, dequantization, requantization, packing, unpacking, and datatype conversions can reduce or even eliminate the expected performance benefit.
+
+Quantization should therefore be considered from two related perspectives:
+
+**Memory.** Lower-precision representations reduce model size and memory traffic.
+
+**Compute.** Computational speedups depend on whether the hardware and software stack can efficiently execute operations using those lower-precision representations.
+
+A smaller datatype alone does not guarantee a faster model.
+

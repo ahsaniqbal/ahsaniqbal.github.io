@@ -1,7 +1,7 @@
 ---
 title: "Linear Quantization"
 date: 2026-08-24
-categories: [Quantization, Python]
+categories: [Quantization, Python, Pytorch]
 ---
 
 Linear (or **uniform**) quantization uses a linear mapping to transform values from a high-precision range into a lower-precision range. Given a high-precision value ($x$), its corresponding quantized value ($q$) can be expressed as
@@ -231,6 +231,7 @@ Now let's implement these functions using PyTorch.
 
 ```{python}
 import torch
+import numpy as np
 
 
 def calculate_quantization_params(
@@ -588,4 +589,12 @@ $$
 
 Quantization granularity therefore represents a trade-off between **numerical accuracy, storage efficiency, and implementation complexity**.
 
+### Conclusion
 
+The concepts introduced in this article describe the fundamental mechanics of linear quantization. Regardless of whether we quantize model weights, activations, or both, we ultimately need to answer the same questions: what numerical range should be represented, how should the scale and zero-point be determined, and at what granularity should those parameters be calculated?
+
+In the next article, we will apply these concepts to neural networks and examine how quantization differs when applied to weights and activations.
+
+### References 
+
+- [DeepLearning.AI — *Quantization in Depth*](https://www.deeplearning.ai/courses/quantization-in-depth)
